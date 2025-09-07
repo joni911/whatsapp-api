@@ -11,6 +11,15 @@ if (!baseWebhookURL) {
   process.exit(1) // Terminate the application with an error code
 }
 
-app.listen(port, () => {
+const server = app.listen(port, () => {
   console.log(`Server running on port ${port}`)
+})
+
+// Handle graceful shutdown
+process.on('SIGINT', () => {
+  console.log('Shutting down gracefully...')
+  server.close(() => {
+    console.log('Server closed')
+    process.exit(0)
+  })
 })
