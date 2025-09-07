@@ -154,10 +154,159 @@ In order to validate a new WhatsApp Web instance you need to scan the QR code us
 
 ## Deploy to Production
 
-- Load the docker image in docker-compose, or your Kubernetes environment
-- Disable the `ENABLE_LOCAL_CALLBACK_EXAMPLE` environment variable
-- Set the `API_KEY` environment variable to protect the REST endpoints
-- Run periodically the `/api/terminateInactiveSessions` endpoint to prevent useless sessions to take up space and resources(only in case you are not in control of the sessions)
+This section covers different ways to deploy the WhatsApp API to a production server.
+
+### Option 1: Using Docker (Recommended)
+
+1. Pull and run the latest Docker image:
+   ```bash
+   docker-compose pull && docker-compose up -d
+   ```
+
+2. Configure the environment variables in `docker-compose.yml`:
+   ```yaml
+   environment:
+     - API_KEY=your_secure_api_key_here  # REQUIRED for production
+     - BASE_WEBHOOK_URL=https://yourdomain.com/webhook  # REQUIRED - your webhook endpoint
+     - ENABLE_LOCAL_CALLBACK_EXAMPLE=FALSE  # DISABLE for production
+     - MAX_ATTACHMENT_SIZE=10000000  # Adjust as needed
+     - SET_MESSAGES_AS_SEEN=TRUE  # Optional
+     - DISABLED_CALLBACKS=message_ack|message_reaction  # Optional
+     - ENABLE_SWAGGER_ENDPOINT=FALSE  # Optional, disable in production
+   ```
+
+3. Ensure the `sessions` volume is properly mapped for persistent storage:
+   ```yaml
+   volumes:
+     - ./sessions:/usr/src/app/sessions
+   ```
+
+### Option 2: Running Directly on Server
+
+1. Install Node.js (version 14.17.0 or higher):
+   ```bash
+   # Ubuntu/Debian
+   curl -fsSL https://deb.nodesource.com/setup_16.x | sudo -E bash -
+   sudo apt-get install -y nodejs
+
+   # CentOS/RHEL
+   curl -fsSL https://rpm.nodesource.com/setup_16.x | sudo bash -
+   sudo yum install -y nodejs
+   ```
+
+2. Install Chromium dependencies:
+   ```bash
+   # Ubuntu/Debian
+   sudo apt-get install -y chromium-browser
+
+   # CentOS/RHEL
+   sudo yum install -y chromium
+   ```
+
+3. Clone the repository and install dependencies:
+   ```bash
+   git clone https://github.com/chrishubert/whatsapp-api.git
+   cd whatsapp-api
+   npm install --only=production
+   ```
+
+4. Configure environment variables by copying `.env.example` to `.env`:
+   ```bash
+   cp .env.example .env
+   ```
+
+5. Edit the `.env` file with your configuration:
+   ```bash
+   PORT=3000
+   API_KEY=your_secure_api_key_here
+   BASE_WEBHOOK_URL=https://yourdomain.com/webhook
+   ENABLE_LOCAL_CALLBACK_EXAMPLE=FALSE
+   ```
+
+6. Start the application:
+   ```bash
+   npm start
+   ```
+
+7. For production, use a process manager like PM2:
+   ```bash
+   # Install PM2 globally
+   npm install -g pm2
+
+   # Start the application with PM2
+   pm2 start server.js --name whatsapp-api
+
+   # Save the PM2 configuration
+   pm2 save
+
+   # Set PM2 to start on boot
+   pm2 startup
+   ```
+
+### Server Configuration Requirements
+
+- **Operating System**: Linux (Ubuntu 18.04+, CentOS 7+, etc.) or Windows Server
+- **Node.js**: Version 14.17.0 or higher
+- **Memory**: Minimum 1GB RAM (2GB+ recommended)
+- **Storage**: Minimum 500MB free disk space
+- **Browser**: Chromium/Chrome (automatically installed with Docker)
+
+### Environment Variables
+
+| Variable | Description | Required | Default |
+|----------|-------------|----------|---------|
+| `PORT` | Port for the API to listen on | No | 3000 |
+| `API_KEY` | Global API key to protect endpoints | Yes (recommended) | - |
+| `BASE_WEBHOOK_URL` | URL to receive webhook events | Yes | - |
+| `ENABLE_LOCAL_CALLBACK_EXAMPLE` | Enable local callback example endpoint | No | FALSE |
+| `MAX_ATTACHMENT_SIZE` | Maximum attachment size in bytes | No | 10000000 |
+| `SET_MESSAGES_AS_SEEN` | Automatically mark messages as read | No | TRUE |
+| `DISABLED_CALLBACKS` | Callbacks to disable (separated by \|) | No | - |
+| `ENABLE_SWAGGER_ENDPOINT` | Enable Swagger documentation endpoint | No | FALSE |
+| `SESSIONS_PATH` | Path to store session data | No | ./sessions |
+
+### Security Considerations
+
+1. Always set a strong `API_KEY` in production
+2. Disable `ENABLE_LOCAL_CALLBACK_EXAMPLE` in production
+3. Use HTTPS for your webhook endpoints
+4. Restrict access to the API using firewalls
+5. Regularly update the Docker image or application code
+6. Monitor logs for suspicious activity
+
+### Session Management
+
+Sessions are stored in the `./sessions` directory by default. For production:
+
+1. Ensure this directory is backed up regularly
+2. Monitor disk space usage
+3. Clean up old sessions using the `/session/terminateInactive` endpoint
+4. Use a cron job to periodically clean up inactive sessions
+
+### Monitoring and Maintenance
+
+1. Set up log rotation for application logs
+2. Monitor disk space for session storage
+3. Set up health checks using the `/ping` endpoint
+4. Regularly check for updates to the Docker image
+5. Monitor for WhatsApp Web version compatibility issues
+
+### Troubleshooting
+
+1. **QR Code Not Generating**: Ensure the server can access the internet and WhatsApp servers
+2. **Session Not Connecting**: Check firewall settings and ensure ports are not blocked
+3. **Memory Issues**: Increase server memory or limit concurrent sessions
+4. **Webhook Not Receiving**: Verify the `BASE_WEBHOOK_URL` is accessible from the internet
+5. **Performance Issues**: Monitor CPU and memory usage, consider scaling horizontally
+
+### Scaling
+
+For handling multiple WhatsApp accounts:
+
+1. Run multiple instances with different ports
+2. Use a load balancer to distribute requests
+3. Ensure each instance has its own session storage directory
+4. Consider using Kubernetes for orchestration
 
 ## Contributing
 
